@@ -1,0 +1,11 @@
+INSERT INTO customers (name, email, age, is_employed, salary, phone_number, date_of_birth, city, state, zip_code, country) VALUES
+('Alice Johnson', 'alice@example.com', 28, true, 75000.00, '555-0101', '1996-05-15', 'New York', 'NY', '10001', 'USA'),
+('Bob Smith', 'bob@example.com', 34, true, 82000.50, '555-0102', '1990-11-20', 'Los Angeles', 'CA', '90001', 'USA'),
+('Charlie Brown', 'charlie@example.com', 22, false, 0.00, '555-0103', '2002-03-10', 'Chicago', 'IL', '60601', 'USA'),
+('Diana Prince', 'diana@example.com', 31, true, 95000.00, '555-0104', '1993-08-25', 'London', 'London', 'EC1A', 'UK'),
+('Evan Wright', 'evan@example.com', 45, true, 110000.00, '555-0105', '1979-12-01', 'Toronto', 'ON', 'M5V', 'Canada'),
+('Fiona Gallagher', 'fiona@example.com', 26, false, 1500.00, '555-0106', '1998-07-14', 'Dublin', 'Leinster', 'D01', 'Ireland'),
+('George Miller', 'george@example.com', 52, true, 65000.00, '555-0107', '1972-01-30', 'Sydney', 'NSW', '2000', 'Australia'),
+('Hannah Abbott', 'hannah@example.com', 19, false, 0.00, '555-0108', '2005-09-05', 'Edinburgh', 'Midlothian', 'EH1', 'UK'),
+('Ian Wright', 'ian@example.com', 38, true, 88000.00, '555-0109', '1986-04-12', 'San Francisco', 'CA', '94105', 'USA'),
+('Jane Doe', 'jane@example.com', 29, true, 72000.00, '555-0110', '1995-06-22', 'Boston', 'MA', '02108', 'USA');

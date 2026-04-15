@@ -1,0 +1,7 @@
+[
+ {"id":1,"name":"John Doe","email":"john@example.com","department":{"id":1,"deptName":"Sales"}},
+ {"id":2,"name":"Jane Smith","email":"jane@techcorp.com","department":{"id":1,"deptName":"Sales"}},
+ {"id":3,"name":"Bob Wilson","email":"bob@example.com","department":{"id":1,"deptName":"Sales"}},
+ {"id":4,"name":"Alice Tech","email":"alice@techcorp.com","department":{"id":1,"deptName":"Sales"}},
+ {"id":5,"name":"Charlie Brown","email":"charlie@gmail.com","department":{"id":1,"deptName":"Sales"}}
+]
