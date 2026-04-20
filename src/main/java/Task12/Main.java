@@ -1,5 +1,4 @@
-package Task11;
-
+package Task12;
 
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParametersBuilder;
@@ -14,24 +13,24 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import java.util.List;
 
-@EntityScan(basePackages = "Task11")
-@SpringBootApplication(scanBasePackages = "Task11")
-@EnableJpaRepositories(basePackages = "Task11")
+@SpringBootApplication(scanBasePackages = "Task12")
+@EntityScan(basePackages = "Task12")
+@EnableJpaRepositories(basePackages = "Task12")
 public class Main {
 
     public static void main(String[] args) {
         SpringApplication.run(Main.class, args);
     }
-    @Bean
+
+@Bean
     public CommandLineRunner runBatch(CustomerRepository customerRepo,
                                       DepartmentRepository deptRepo,
                                       JobLauncher jobLauncher,
                                       @Qualifier("jpaBatchJob") Job jpaBatchJobEx07
-    )
+)
     {
 
         return args -> {
-
             String Sales = "Sales";
             if (deptRepo.findByDeptName(Sales)== null) {
                 Department sales = new Department();
