@@ -4,6 +4,7 @@ import Task04.Customer;
 import Task04.Department;
 import Task04.DepartmentRepository;
 import Task04.dto.CustomerDeptDto;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.StepExecution;
@@ -19,9 +20,6 @@ import java.util.Objects;
 @Component
 public class BatchListener {
     private StepExecution stepExecution;
-
-
-
 
     @BeforeJob
     public void beforeJob(JobExecution jobExecution) {
@@ -201,15 +199,24 @@ public class BatchListener {
     public void cleanupOrReport(JobExecution jobExecution) {
         long duration = Objects.requireNonNull(jobExecution.getEndTime()).getSecond() - Objects.requireNonNull(jobExecution.getStartTime()).getSecond();
 
-        System.out.println("=======================================");
-        System.out.println("JOB FINISHED: "+ jobExecution.getJobInstance()+" ------  " + jobExecution.getStatus());
-        System.out.println("=======================================");
+        System.out.println("=================================================");
+        System.out.println("JOB FINISHED: " + jobExecution.getJobInstance().getJobName());
+        System.out.println("Status: " + jobExecution.getStatus());
 
-        if (jobExecution.getStatus().toString().equals("COMPLETED")) {
-            System.out.println("Check JsonOutput/customers.json for results!");
-            System.out.println("=======================================");
+        // Reporting on Step Performance and Skips
+        for (StepExecution stepExecution : jobExecution.getStepExecutions()) {
+            System.out.printf("Step: %s | Read: %d | Write: %d | Skip: %d%n",
+                    stepExecution.getStepName(),
+                    stepExecution.getReadCount(),
+                    stepExecution.getWriteCount(),
+                    stepExecution.getSkipCount());
 
+            if (stepExecution.getStatus() == BatchStatus.FAILED) {
+                System.out.println("FAILURE IN STEP: " + stepExecution.getSummary());
+            }
         }
+        System.out.println("=================================================");
+
     }
 
     @OnSkipInRead

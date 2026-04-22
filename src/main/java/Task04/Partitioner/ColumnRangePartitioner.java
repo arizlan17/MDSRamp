@@ -10,7 +10,8 @@ import java.util.Map;
 
 public class ColumnRangePartitioner implements Partitioner {
     @Autowired
-    private JdbcTemplate jdbcTemplate; // For dynamic bounds checking
+    private JdbcTemplate jdbcTemplate;
+    // For dynamic bounds checking
 
     @Override
     public Map<String, ExecutionContext> partition(int gridSize) {
@@ -18,7 +19,12 @@ public class ColumnRangePartitioner implements Partitioner {
         Integer max = jdbcTemplate.queryForObject("SELECT MAX(id) FROM customer", Integer.class);
 
         int targetSize = (max - min) / gridSize +1 ;
+        System.out.println("=================================================================================================================================================/\n");
+        System.out.println("min: " + min);
+        System.out.println("max: " + max);
         System.out.println("targetSize: " + targetSize);
+        System.out.println("=================================================================================================================================================/\n");
+
         Map<String, ExecutionContext> result = new HashMap<>();
 
 
@@ -38,7 +44,10 @@ public class ColumnRangePartitioner implements Partitioner {
             end += targetSize;
             number++;
         }
+        System.out.println("=================================================================================================================================================/\n");
         System.out.println("result: " + result.toString());
+        System.out.println("=================================================================================================================================================/\n");
+
         return result;
     }
 }

@@ -46,8 +46,10 @@ import java.util.Map;
 public class BatchConfigEx07 {
 
 
-    @Bean(name = "customJobRepository") // Rename to avoid direct collision
-    @Primary // Tells Spring Boot to prefer this bean over its auto-configured one
+    @Bean(name = "customJobRepository")
+    // Rename to avoid direct collision
+    @Primary
+    // Tells Spring Boot to prefer this bean over its autoconfigured one
     public JobRepository jobRepository(DataSource dataSource, PlatformTransactionManager transactionManager) throws Exception {
         JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();
         factory.setDataSource(dataSource);
@@ -58,23 +60,6 @@ public class BatchConfigEx07 {
     }
 //    -------------------------------------- Readers ----------------------------------
 
-
-    @Bean(name = "partitionedJpaReader")
-    @StepScope
-    public JpaPagingItemReader<Customer> partitionedJpaReader(
-            EntityManagerFactory entityManagerFactory,
-            @Value("#{stepExecutionContext['minValue']}") Long minValue,
-            @Value("#{stepExecutionContext['maxValue']}") Long maxValue) {
-
-        return new JpaPagingItemReaderBuilder<Customer>()
-                .name("partitionedJpaReader")
-                .entityManagerFactory(entityManagerFactory)
-                // Range-based query for parallel efficiency
-                .queryString("SELECT c FROM Customer c WHERE c.id >= :min AND c.id <= :max")
-                .parameterValues(Map.of("min", minValue, "max", maxValue))
-                .pageSize(100)
-                .build();
-    }
     @Bean(name = "customerCsvReader")
     public FlatFileItemReader<CustomerDTO> reader() {
         return new FlatFileItemReaderBuilder<CustomerDTO>()
@@ -88,6 +73,7 @@ public class BatchConfigEx07 {
                 }})
                 .build();
     }
+
 
 
     @Bean(name = "jpaFilteredReader")
@@ -114,12 +100,49 @@ public class BatchConfigEx07 {
                 .build();
     }
 
+
+    @Bean(name = "partitionedJpaReader")
+    @StepScope
+    public JpaPagingItemReader<Customer> partitionedJpaReader(
+            EntityManagerFactory entityManagerFactory,
+            @Value("#{stepExecutionContext['minValue']}") Long minValue,
+            @Value("#{stepExecutionContext['maxValue']}") Long maxValue) {
+
+        return new JpaPagingItemReaderBuilder<Customer>()
+                .name("partitionedJpaReader")
+                .entityManagerFactory(entityManagerFactory)
+                // Range-based query for parallel efficiency
+                .queryString("SELECT c FROM Customer c WHERE c.id >= :min AND c.id <= :max")
+                .parameterValues(Map.of("min", minValue, "max", maxValue))
+                .pageSize(100)
+                .build();
+    }
+
+
+
+
+
 //---------------------------------------- Partition ----------------------------------
 
     @Bean
     public ColumnRangePartitioner columnRangePartitioner() {
         return new ColumnRangePartitioner();
     }
+
+    @Bean(name = "taskExecutor")
+    public TaskExecutor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        // The "always-on" threads
+        executor.setCorePoolSize(5);
+        //      no of cores + 1
+        executor.setMaxPoolSize(10);
+        // The waiting area for tasks
+        executor.setQueueCapacity(25);
+        executor.setThreadNamePrefix("BatchThread-");
+        executor.initialize();
+        return executor;
+    }
+
 
     @Bean
     public PartitionHandler partitionHandler(@Qualifier("workerStep") Step workerStep,@Qualifier("taskExecutor") TaskExecutor taskExecutor) {
@@ -135,21 +158,6 @@ public class BatchConfigEx07 {
         return handler;
     }
 
-    @Bean(name = "taskExecutor")
-    public TaskExecutor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        // The "always-on" threads
-        executor.setCorePoolSize(5);
-//        no of cores + 1
-        // The absolute ceiling
-        executor.setMaxPoolSize(10);
-        // The waiting area for tasks
-        executor.setQueueCapacity(25);
-        executor.setThreadNamePrefix("BatchThread-");
-        executor.initialize();
-        return executor;
-    }
-
 
 
  //    -------------------------------------- Processors ----------------------------------
@@ -163,10 +171,9 @@ public class BatchConfigEx07 {
             customer.setName(dto.getName());
             if (dto.getEmail().isBlank()) {
                 customer.setEmail(null);
-                customer.setProcessing_status("No Email Provided");
             }else {
                 customer.setEmail(dto.getEmail());
-                customer.setProcessing_status("Email Provided");
+                customer.setName(dto.getName());
             }
             Department dept = entityManager.getReference(Department.class, dto.getDepartmentId());
             customer.setDepartment(dept);
@@ -179,10 +186,11 @@ public class BatchConfigEx07 {
     public ItemProcessor<Customer, Customer> jpaProcessorToEntityEx07(BatchListener listener) {
         return customer -> {
             if (customer.getEmail() == null) {
+                customer.setProcessing_status("Failed - Missing Email - Task 04");
                 throw new NullPointerException("email is null for customer: " + customer.getId());
+            }else {
+                customer.setProcessing_status("Processed Successfully - Task 04");
             }
-
-            customer.setName(customer.getName());
             return customer;
         };
     }
@@ -195,26 +203,38 @@ public class BatchConfigEx07 {
         };
     }
 
+
+    @Bean(name = "compositeProcessor")
+    public CompositeItemProcessor<Customer, Customer> compositeProcessor(
+            @Qualifier("jpaProcessorToEntityEx07")ItemProcessor<Customer, Customer> p0,
+            @Qualifier("upperCaseProcessor") ItemProcessor<Customer, Customer> p1
+            ) {
+
+        CompositeItemProcessor<Customer, Customer> composite = new CompositeItemProcessor<>();
+        composite.setDelegates(Arrays.asList(p0,p1));
+        return composite;
+    }
+
     @Bean(name = "taggingProcessor")
     public ItemProcessor<Customer, Customer> taggingProcessor(BatchListener listener) {
         return customer -> {
-            customer.setName(customer.getName());
+            customer.setProcessing_status(customer.getProcessing_status()+"----- processed by Worker Step -----");
             return customer;
         };
     }
 
 
-    @Bean(name = "compositeProcessor")
-    public CompositeItemProcessor<Customer, Customer> compositeProcessor(
+    @Bean(name = "compositeProcessorForPartitionWorker")
+    public CompositeItemProcessor<Customer, Customer> compositeProcessorForPartitionWorker(
             @Qualifier("jpaProcessorToEntityEx07")ItemProcessor<Customer, Customer> p0,
             @Qualifier("upperCaseProcessor") ItemProcessor<Customer, Customer> p1,
-            @Qualifier("taggingProcessor") ItemProcessor<Customer, Customer> p2) {
+            @Qualifier("taggingProcessor")ItemProcessor<Customer, Customer> p2
+    ) {
 
         CompositeItemProcessor<Customer, Customer> composite = new CompositeItemProcessor<>();
-        composite.setDelegates(Arrays.asList(p0,p1, p2));
+        composite.setDelegates(Arrays.asList(p0,p1,p2));
         return composite;
     }
-
 
 
     //    -------------------------------------- Writers ----------------------------------
@@ -237,7 +257,11 @@ public class BatchConfigEx07 {
     @Bean(name = "logWriter")
     public ItemWriter<Customer> logWriter() {
         return chunk -> {
+
+            System.out.println("=================================================================================\n");
             System.out.println("Logging items: " + chunk.getItems().size());
+            System.out.println("=================================================================================\n");
+
         };
     }
 
@@ -256,12 +280,26 @@ public class BatchConfigEx07 {
 //    ---------------------------------------- Step -------------------------------------------
 
 
+
+    @Bean(name = "schemaUpdateStep")
+    public Step schemaUpdateStep(JobRepository jobRepo,
+                                 PlatformTransactionManager ptm,
+                                 AddColumnTasklet AddColumntasklet,BatchListener listener) {
+        return new StepBuilder("schemaUpdateStep", jobRepo)
+                .tasklet(AddColumntasklet, ptm)
+                .listener(listener)
+                .build();
+    }
+
+
+
     @Bean(name = "managerStep")
     public Step managerStep(JobRepository jobRepository,
                             PartitionHandler partitionHandler,
-                            ColumnRangePartitioner partitioner) {
+                            ColumnRangePartitioner partitioner,BatchListener listener) {
         return new StepBuilder("managerStep", jobRepository)
                 .partitioner("workerStep", partitioner)
+                .listener(listener)
                 .partitionHandler(partitionHandler)
                 .build();
     }
@@ -272,34 +310,28 @@ public class BatchConfigEx07 {
                               PlatformTransactionManager transactionManager,
                               @Qualifier("customerCsvReader") FlatFileItemReader<CustomerDTO> reader,
                               @Qualifier("csvToJpaProcessor") ItemProcessor<CustomerDTO, Customer> processor,
-                              @Qualifier("jpaWriter") JpaItemWriter<Customer> writer) {
+                              @Qualifier("jpaWriter") JpaItemWriter<Customer> writer,BatchListener listener) {
         return new StepBuilder("csvImportStep", jobRepository)
                 .<CustomerDTO, Customer>chunk(100, transactionManager)
                 .reader(reader)
+                .listener(listener)
                 .processor(processor)
                 .writer(writer)
                 .build();
     }
 
-    @Bean(name = "schemaUpdateStep")
-    public Step schemaUpdateStep(JobRepository jobRepo,
-                                 PlatformTransactionManager ptm,
-                                 AddColumnTasklet AddColumntasklet) {
-        return new StepBuilder("schemaUpdateStep", jobRepo)
-                .tasklet(AddColumntasklet, ptm)
-                .build();
-    }
+
 
     @Bean(name = "batchStepEx07")
     public Step batchStepEx07(JobRepository jobRepo,
                               PlatformTransactionManager transactionManager,
                               @Qualifier("jpaFilteredReader") JpaPagingItemReader<Customer> reader,
                               @Qualifier("compositeProcessor") CompositeItemProcessor<Customer, Customer> processor,
-                              @Qualifier("compositeWriter") CompositeItemWriter<Customer> writer) {
+                              @Qualifier("compositeWriter") CompositeItemWriter<Customer> writer,  BatchListener listener) {
         return new StepBuilder("StepEx07", jobRepo)
                 .<Customer, Customer>chunk(100, transactionManager)
                 .reader(reader)
-                .processor(processor)
+                .processor(processor).listener(listener)
                 .writer(writer)
                 .faultTolerant()
                 .skipPolicy(new NullableDataSkipPolicy())
@@ -311,10 +343,11 @@ public class BatchConfigEx07 {
                               PlatformTransactionManager transactionManager,
                               @Qualifier("jpaFilteredReader02") JpaPagingItemReader<Customer> reader,
                               @Qualifier("compositeProcessor") CompositeItemProcessor<Customer, Customer> processor,
-                              @Qualifier("compositeWriter") CompositeItemWriter<Customer> writer) {
+                              @Qualifier("compositeWriter") CompositeItemWriter<Customer> writer,  BatchListener listener) {
         return new StepBuilder("StepEx07_02", jobRepo)
                 .<Customer, Customer>chunk(100, transactionManager)
                 .reader(reader)
+                .listener(listener)
                 .processor(processor)
                 .writer(writer)
                 .faultTolerant()
@@ -325,12 +358,14 @@ public class BatchConfigEx07 {
     @Bean(name = "workerStep")
     public Step workerStep(JobRepository jobRepo,
                            PlatformTransactionManager transactionManager,
+                           BatchListener listener,
                            @Qualifier("partitionedJpaReader") JpaPagingItemReader<Customer> reader,
-                           @Qualifier("compositeProcessor") CompositeItemProcessor<Customer, Customer> processor,
+                           @Qualifier("compositeProcessorForPartitionWorker") CompositeItemProcessor<Customer, Customer> processor,
                            @Qualifier("compositeWriter") CompositeItemWriter<Customer> writer) {
         return new StepBuilder("workerStep", jobRepo)
                 .<Customer, Customer>chunk(100, transactionManager)
                 .reader(reader)
+                .listener(listener)
                 .processor(processor)
                 .writer(writer)
                 .faultTolerant()
@@ -342,29 +377,84 @@ public class BatchConfigEx07 {
 
 
 
-
-
-
-
-
-
-
-
+//    /----------------------------------JOBs---------------------------------------------------------------------
 
 
     @Bean(name = "jpaBatchJobEx07")
     public Job jpaBatchJobEx07(JobRepository jobRepo,
-                               @Qualifier("managerStep") Step managerStep,
                                @Qualifier("schemaUpdateStep") Step schemaUpdateStep,
                                @Qualifier("csvImportStep") Step csvImportStep,
+                               @Qualifier("managerStep") Step managerStep,
+                               @Qualifier("batchStepEx07") Step batchStepEx07,
+                               @Qualifier("batchStepEx07_02") Step batchStepEx07_02,
                                BatchListener listener) {
         return new JobBuilder("JpaBatchJobEx07", jobRepo)
                 .listener(listener)
                 .start(schemaUpdateStep)
                 .next(csvImportStep)
-                .next(managerStep)
-                // This runs workerSteps in parallel
+                .next(batchStepEx07)
+                .next(batchStepEx07_02)
+                .next(managerStep)// This runs workerSteps in parallel
                 .build();
     }
+
+
+
+    @Bean(name = "jobSchemaUpdateStep")
+    public Job jobschemaUpdateStep (JobRepository jobRepo,
+                               @Qualifier("schemaUpdateStep") Step schemaUpdateStep,
+                               BatchListener listener) {
+        return new JobBuilder("jobSchemaUpdateStep", jobRepo)
+                .listener(listener)
+                .start(schemaUpdateStep)
+                .build();
     }
 
+
+
+@Bean(name = "jobCSVImport")
+    public Job jobCSVImport(JobRepository jobRepo,
+                               @Qualifier("csvImportStep") Step csvImportStep,
+                               BatchListener listener) {
+        return new JobBuilder("jobCSVImport", jobRepo)
+                .listener(listener)
+                .start(csvImportStep)
+                .build();
+    }
+
+
+
+    @Bean(name = "jobWithParameters")
+    public Job jobWithParameters(JobRepository jobRepo,
+                               @Qualifier("batchStepEx07") Step batchStepEx07,
+                               BatchListener listener) {
+        return new JobBuilder("jobWithParameters", jobRepo)
+                .listener(listener)
+                .start(batchStepEx07)
+                .build();
+    }
+
+
+    @Bean(name = "jobWithOutParameters")
+    public Job jobWithOutParameters(JobRepository jobRepo,
+                                    @Qualifier("batchStepEx07_02") Step batchStepEx07_02,
+                               BatchListener listener) {
+        return new JobBuilder("jobWithOutParameters", jobRepo)
+                .listener(listener)
+                .start(batchStepEx07_02)
+                .build();
+    }
+
+
+    @Bean(name = "jobPartitionJob")
+    public Job jobPartitionJob(JobRepository jobRepo,
+                               @Qualifier("managerStep") Step managerStep,
+                               BatchListener listener) {
+        return new JobBuilder("jobPartitionJob", jobRepo)
+                .listener(listener)
+                .start(managerStep)// This runs workerSteps in parallel
+                .build();
+    }
+
+
+}

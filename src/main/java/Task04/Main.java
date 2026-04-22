@@ -1,5 +1,6 @@
 package Task04;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,11 +23,18 @@ public class Main {
     }
 
 @Bean
-    public CommandLineRunner runBatch(CustomerRepository customerRepo,
+public CommandLineRunner runBatch(CustomerRepository customerRepo,
                                       DepartmentRepository deptRepo,
                                       JobLauncher jobLauncher,
-                                      @Qualifier("jpaBatchJobEx07") Job jpaBatchJobEx07
-)
+                                      @Qualifier("jpaBatchJobEx07") Job jpaBatchJobEx07,
+                                  @Qualifier("jobSchemaUpdateStep") Job jobSchemaUpdateStep,
+                                  @Qualifier("jobCSVImport") Job jobCSVImport,
+                                  @Qualifier("jobWithParameters") Job jobWithParameters,
+                                  @Qualifier("jobWithOutParameters") Job jobWithOutParameters,
+                                  @Qualifier("jobPartitionJob") Job jobPartitionJob
+
+
+                                  )
     {
 
         return args -> {
@@ -42,11 +50,42 @@ public class Main {
             }
 
 
-            System.out.println("\n--- Starting Exercise 07");
-            jobLauncher.run(jpaBatchJobEx07, new JobParametersBuilder()
-                    .addLong("start-time", System.currentTimeMillis())
+            JobParameters params = new JobParametersBuilder()
                     .addString("targetDept", "Sales")
-                    .toJobParameters());
+                    .addLong("timestamp", System.currentTimeMillis())
+                    .toJobParameters();
+
+//            System.out.println("\n--- Starting Exercise 07");
+//            jobLauncher.run(jpaBatchJobEx07, params);
+//
+            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+            System.out.println("\n--- Starting jobSchemaUpdateStep");
+            jobLauncher.run(jobSchemaUpdateStep, params);
+            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+
+
+
+            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+            System.out.println("\n--- Starting jobCSVImport");
+            jobLauncher.run(jobCSVImport, params);
+            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+
+            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+            System.out.println("\n--- Starting jobWithParameters");
+            jobLauncher.run(jobWithParameters, params);
+
+
+//            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+//            System.out.println("\n--- Starting jobWithOutParameters");
+//            jobLauncher.run(jobWithOutParameters, params);
+//            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+//
+//            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+//            System.out.println("\n--- Starting jobPartitionJob");
+//            jobLauncher.run(jobPartitionJob, params);
+//            System.out.println("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n");
+
+
 
 
         };
